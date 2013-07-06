@@ -233,6 +233,28 @@ ULONG CDECL wined3d_query_incref(struct wined3d_query *query)
     return refcount;
 }
 
+void wined3d_query_destroy(struct wined3d_query *query)
+{
+    /* Queries are specific to the GL context that created them. Not
+     * deleting the query will obviously leak it, but that's still better
+     * than potentially deleting a different query with the same id in this
+     * context, and (still) leaking the actual query. */
+    if (query->type == WINED3D_QUERY_TYPE_EVENT)
+    {
+        struct wined3d_event_query *event_query = query->extendedData;
+        if (event_query) wined3d_event_query_destroy(event_query);
+    }
+    else if (query->type == WINED3D_QUERY_TYPE_OCCLUSION)
+    {
+        struct wined3d_occlusion_query *oq = query->extendedData;
+
+        if (oq->context) context_free_occlusion_query(oq);
+        HeapFree(GetProcessHeap(), 0, query->extendedData);
+    }
+
+    HeapFree(GetProcessHeap(), 0, query);
+}
+
 ULONG CDECL wined3d_query_decref(struct wined3d_query *query)
 {
     ULONG refcount = InterlockedDecrement(&query->ref);
